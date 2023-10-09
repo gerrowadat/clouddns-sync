@@ -11,6 +11,7 @@ import (
 				"google.golang.org/api/dns/v1"
 			)
 
+
 func getCloudManagedZones(dnsservice *dns.Service, project string) ([]*dns.ManagedZone, error) {
 	nextPageToken := ""
 	ret := []*dns.ManagedZone{}
@@ -32,19 +33,29 @@ func getCloudManagedZones(dnsservice *dns.Service, project string) ([]*dns.Manag
 func getResourceRecordSetsForZone(dnsservice *dns.Service, project *string, zone *string) ([]*dns.ResourceRecordSet, error) {
 	nextPageToken := ""
 	ret := []*dns.ResourceRecordSet{}
+
 	for {
-		fmt.Println("get")
-		out, err := dnsservice.ResourceRecordSets.List(*project, *zone).PageToken(nextPageToken).Do()
+		call := dnsservice.ResourceRecordSets.List(*project, *zone)
+		
+		if nextPageToken != "" {
+			call = call.PageToken(nextPageToken)
+		}
+
+		out, err := call.Do()
+
 		if err != nil {
-			fmt.Println("whoops")
 			return ret, err
 		}
+
 		ret = append(ret, out.Rrsets...)
+
 		if out.NextPageToken == "" {
 			break
 		}
+
 		nextPageToken = out.NextPageToken
 	}
+
 	return ret, nil
 }
 
@@ -77,7 +88,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	//zones, err := getCloudManagedZones(dnsservice, "awaylab")
+	zones, err := getCloudManagedZones(dnsservice, "awaylab")
+
+	if err != nil {
+		fmt.Println("Cloud DNS Error: ", err.Error())
+	}
+
+	for _, z := range zones {
+		fmt.Println(z.Name, ": ", z.DnsName)
+	}
+
 	rrs, err := getResourceRecordSetsForZone(dnsservice, cloudProject, cloudZone)
 
 	if err != nil {

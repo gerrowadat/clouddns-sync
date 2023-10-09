@@ -3,7 +3,6 @@ module clouddns-sync
 go 1.18
 
 require (
-	github.com/bwesterb/go-zonefile v1.0.0
 	golang.org/x/oauth2 v0.12.0
 	google.golang.org/api v0.145.0
 )
