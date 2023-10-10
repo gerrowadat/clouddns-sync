@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/option"
 	"io/ioutil"
 	"log"
+	"strings"
 	"strconv"
 )
 
@@ -58,6 +59,23 @@ func getResourceRecordSetsForZone(dnsservice *dns.Service, project *string, zone
 	return ret, nil
 }
 
+func ZoneFileFragment(rr *dns.ResourceRecordSet) (string) {
+	ret := []string{}
+	if rr.Type != "SOA" {
+		soa_str := string("")
+		if int(rr.Ttl) != 0 {
+			soa_str = fmt.Sprintf("%s ", strconv.Itoa(int(rr.Ttl)))
+		}
+		for i, _ := range rr.Rrdatas {
+			ret = append(ret, fmt.Sprintf("%s %sIN %s %s", rr.Name, soa_str, rr.Type, string(rr.Rrdatas[i])))
+		}
+	} else {
+		// SOA
+		ret = append(ret, fmt.Sprintf("%s IN %s %s", rr.Name, rr.Type, string(rr.Rrdatas[0])))
+	}
+	return strings.Join(ret, "\n")
+}
+
 func main() {
 	var jsonKeyfile = flag.String("json-keyfile", "key.json", "json credentials file for Cloud DNS")
 	var cloudProject = flag.String("cloud-project", "myproject", "Google Cloud Project")
@@ -103,18 +121,6 @@ func main() {
 	}
 
 	for _, rr := range rrs {
-		if rr.Type != "SOA" {
-			soa_str := string("")
-			if int(rr.Ttl) != 0 {
-				soa_str = fmt.Sprintf("%s ", strconv.Itoa(int(rr.Ttl)))
-			}
-			for i, _ := range rr.Rrdatas {
-				fmt.Printf("%s %sIN %s %s\n", rr.Name, soa_str, rr.Type, string(rr.Rrdatas[i]))
-			}
-		} else {
-			// SOA
-			fmt.Printf("%s IN %s %s\n", rr.Name, rr.Type, string(rr.Rrdatas[0]))
-		}
-
+		fmt.Println(ZoneFileFragment(rr))
 	}
 }
