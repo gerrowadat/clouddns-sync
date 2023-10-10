@@ -4,13 +4,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+
 	google_oauth "golang.org/x/oauth2/google"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/option"
-	"io/ioutil"
-	"log"
-	"strings"
-	"strconv"
 )
 
 func getCloudManagedZones(dnsservice *dns.Service, project *string) ([]*dns.ManagedZone, error) {
@@ -59,7 +60,7 @@ func getResourceRecordSetsForZone(dnsservice *dns.Service, project *string, zone
 	return ret, nil
 }
 
-func ZoneFileFragment(rr *dns.ResourceRecordSet) (string) {
+func ZoneFileFragment(rr *dns.ResourceRecordSet) string {
 	ret := []string{}
 	if rr.Type != "SOA" {
 		soa_str := string("")
@@ -82,7 +83,11 @@ func main() {
 	var cloudZone = flag.String("cloud-dns-zone", "myzone", "Cloud DNS zone to operate on")
 	flag.Parse()
 
-	jsonData, ioerror := ioutil.ReadFile(*jsonKeyfile)
+	if len(flag.Args()) != 1 {
+		log.Fatal("No verb specified")
+	}
+
+	jsonData, ioerror := os.ReadFile(*jsonKeyfile)
 	if ioerror != nil {
 		log.Fatal(*jsonKeyfile, ioerror)
 	}
