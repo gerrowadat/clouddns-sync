@@ -8,11 +8,11 @@ import (
 	"google.golang.org/api/dns/v1"
 )
 
-func getCloudManagedZones(dnsservice *dns.Service, project *string) ([]*dns.ManagedZone, error) {
+func getCloudManagedZones(dnsSpec *CloudDNSSpec) ([]*dns.ManagedZone, error) {
 	nextPageToken := ""
 	ret := []*dns.ManagedZone{}
 	for {
-		out, err := dnsservice.ManagedZones.List(*project).PageToken(nextPageToken).Do()
+		out, err := dnsSpec.svc.ManagedZones.List(*dnsSpec.project).PageToken(nextPageToken).Do()
 		if err != nil {
 			return ret, err
 		}
@@ -25,12 +25,12 @@ func getCloudManagedZones(dnsservice *dns.Service, project *string) ([]*dns.Mana
 	return ret, nil
 }
 
-func getResourceRecordSetsForZone(dnsservice *dns.Service, project *string, zone *string) ([]*dns.ResourceRecordSet, error) {
+func getResourceRecordSetsForZone(dnsSpec *CloudDNSSpec) ([]*dns.ResourceRecordSet, error) {
 	nextPageToken := ""
 	ret := []*dns.ResourceRecordSet{}
 
 	for {
-		call := dnsservice.ResourceRecordSets.List(*project, *zone)
+		call := dnsSpec.svc.ResourceRecordSets.List(*dnsSpec.project, *dnsSpec.zone)
 
 		if nextPageToken != "" {
 			call = call.PageToken(nextPageToken)
