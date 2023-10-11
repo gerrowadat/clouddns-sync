@@ -42,6 +42,7 @@ func zoneDiffersFromCloud(e *zonefile.Entry, rr *dns.ResourceRecordSet) bool {
 		return true
 	}
 	// Compare e.Values to rr.Rrdatas
+	// Also it's rrdatums, you clod.
 	if len(e.Values()) != len(rr.Rrdatas) {
 		return true
 	}
@@ -68,6 +69,7 @@ func rrFromZoneEntry(e *zonefile.Entry) *dns.ResourceRecordSet {
 	ret := &dns.ResourceRecordSet{}
 	ret.Kind = string(e.Class())
 	ret.Name = string(e.Domain())
+	// Fuck's sake.
 	if e.TTL() != nil {
 		ret.Ttl = int64(*e.TTL())
 	}
