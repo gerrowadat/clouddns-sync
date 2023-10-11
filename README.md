@@ -19,17 +19,23 @@ gcloud config set project mydnsproject
 gcloud services enable dns.googleapis.com
 
 # Set up your first zone.
-gcloud dns managed-zones create myzone --dns-name=myzone.mydomain.tld --description="My Zone"
+gcloud dns managed-zones create myzone \
+    --dns-name=myzone.mydomain.tld --description="My Zone"
 
 # Set up a service account to admininster just DNS
 gcloud iam service-accounts create gcloud-dns-sync
 
 # Add your service account to the DNS Administrator role for this project
-gcloud projects add-iam-policy-binding myproject  --member=serviceAcount:cloud-dns-sync@mydnsproject.iam.gserviceaccount.com --role=roles/dns.admin
+gcloud projects add-iam-policy-binding myproject \
+    --member=serviceAcount:cloud-dns-sync@mydnsproject.iam.gserviceaccount.com \
+    --role=roles/dns.admin
 
 # Generate a key for the service account. There's a more secure way of doing this with identity federation doodly do but who can be arsed.
-gcloud iam service-accounts keys create cloud-dns-sync.key.json --key-file-type=json --iam-account=cloud-dns-sync@mydnsproject.iam.gserviceaccount.com
+gcloud iam service-accounts keys create cloud-dns-sync.key.json \
+    --key-file-type=json \
+    --iam-account=cloud-dns-sync@mydnsproject.iam.gserviceaccount.com
 
+```
 Now, delegate dns for the (sub)domain you want to whatever is in the output of `gcloud dns managed-zones describe myzone` 
 
 Congrats! you now have a useless DNS zone with no records! You can add them with the `gcloud` command if you like, refer to the docs.
