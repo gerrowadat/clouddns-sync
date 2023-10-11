@@ -12,14 +12,37 @@ import (
 	"google.golang.org/api/option"
 )
 
+func dumpZonefile(rrs []*dns.ResourceRecordSet) {
+	for _, rr := range rrs {
+		fmt.Println(ZoneFileFragment(rr))
+	}
+}
+
+func uploadZonefile(fn *string, dry_run *bool) error {
+	return nil
+}
+
 func main() {
 	var jsonKeyfile = flag.String("json-keyfile", "key.json", "json credentials file for Cloud DNS")
-	var cloudProject = flag.String("cloud-project", "myproject", "Google Cloud Project")
-	var cloudZone = flag.String("cloud-dns-zone", "myzone", "Cloud DNS zone to operate on")
+	var cloudProject = flag.String("cloud-project", "", "Google Cloud Project")
+	var cloudZone = flag.String("cloud-dns-zone", "", "Cloud DNS zone to operate on")
+	var zoneFilename = flag.String("zonefilename", "", "Local zone file to operate on")
+	var dryRun = flag.Bool("dry-run", false, "Do not update Cloud DNs, print what would be done")
 	flag.Parse()
 
+	// Verb and flag verification
 	if len(flag.Args()) != 1 {
 		log.Fatal("No verb specified")
+	}
+
+	verb := flag.Args()[0]
+
+	// These are required in all cases
+	if *cloudProject == "" {
+		log.Fatal("--cloud-project is required")
+	}
+	if *cloudZone == "" {
+		log.Fatal("--cloud-dns-zone is required")
 	}
 
 	jsonData, ioerror := os.ReadFile(*jsonKeyfile)
@@ -41,26 +64,21 @@ func main() {
 		log.Fatal("Cloud DNS Error: ", err)
 	}
 
-	zones, err := getCloudManagedZones(dnsservice, cloudZone)
+	rrs, err := getResourceRecordSetsForZone(dnsservice, cloudProject, cloudZone)
 
 	if err != nil {
 		log.Fatal("Cloud DNS Error: ", err.Error())
 	}
 
-	if len(zones) != 1 {
-		log.Fatal("Zone not found: ", cloudZone)
+	log.Print("Found zone in Cloud DNS")
+
+	switch verb {
+	case "getzonefile":
+		dumpZonefile(rrs)
+	case "putzonefile":
+		uploadZonefile(zoneFilename, dryRun)
+	default:
+		log.Fatal("Uknown verb: ", verb)
 	}
 
-	zoneName := &zones[0].Name
-	//zoneDomain := zones[0].DnsName
-
-	rrs, err := getResourceRecordSetsForZone(dnsservice, cloudProject, zoneName)
-
-	if err != nil {
-		log.Fatal("Cloud DNS Error: ", err.Error())
-	}
-
-	for _, rr := range rrs {
-		fmt.Println(ZoneFileFragment(rr))
-	}
 }
