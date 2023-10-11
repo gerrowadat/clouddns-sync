@@ -116,6 +116,10 @@ func rrFromZoneEntry(e *zonefile.Entry) *dns.ResourceRecordSet {
 	return ret
 }
 
+func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
+	return nil
+}
+
 func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, pruneMissing *bool) error {
 	data, err := os.ReadFile(*zoneFilename)
 	if err != nil {
@@ -129,9 +133,7 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 		return err
 	}
 
-	to_add := []*dns.ResourceRecordSet{}
-	to_modify := []*dns.ResourceRecordSet{}
-	to_delete := []*dns.ResourceRecordSet{}
+	change := dns.Change{}
 
 	rrs, err := getResourceRecordSetsForZone(dnsSpec)
 	if err != nil {
@@ -153,7 +155,10 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 		for _, rr := range rrs {
 			if string(e.Type()) == rr.Type && string(e.Domain()) == rr.Name {
 				if zoneDiffersFromCloud(&e, rr) {
-					to_modify = append(to_modify, rrFromZoneEntry(&e))
+					// Modify means a delete of the exact old record plus
+					// addition of the new one.
+					change.Additions = append(change.Additions, rrFromZoneEntry(&e))
+					change.Deletions = append(change.Deletions, rr)
 					continue
 				}
 			}
@@ -166,19 +171,19 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 					}
 				}
 				if found {
-					to_delete = append(to_delete, rr)
+					change.Deletions = append(change.Deletions, rr)
 					continue
 				}
 			}
 		}
 		// Not found in Cloud DNS, set for addition
-		to_add = append(to_add, rrFromZoneEntry(&e))
+		change.Additions = append(change.Additions, rrFromZoneEntry(&e))
 	}
-	log.Printf("Adding %d entries to Cloud DNS", len(to_add))
-	for _, a := range to_add {
+	log.Printf("Adding %d entries to Cloud DNS", len(change.Additions))
+	for _, a := range change.Additions {
 		log.Printf(" - %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
 	}
-	log.Printf("Modifying %d entries in Cloud DNS", len(to_modify))
-	log.Printf("Removing %d entries from Cloud DNS", len(to_delete))
-	return nil
+	log.Printf("Removing %d entries from Cloud DNS", len(change.Deletions))
+
+	return processCloudDnsChange(dnsSpec, &change)
 }
