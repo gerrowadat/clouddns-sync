@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -70,12 +71,12 @@ func dumpZonefile(dnsSpec *CloudDNSSpec) {
 	}
 }
 
-func zoneDiffersFromCloud(e *zonefile.Entry, rr *dns.ResourceRecordSet) bool {
+func zoneDiffersFromCloud(e *zonefile.Entry, rr *dns.ResourceRecordSet, dnsDomain *string) bool {
 	// I'm not usually a fanboy of reading the rfc and naming
 	// your data types accordingly, but jaysis.
+
 	if string(e.Type()) != rr.Type ||
-		string(e.Domain()) != rr.Name ||
-		string(e.Class()) != rr.Kind {
+		string(e.Domain()) != rr.Name {
 		return true
 	}
 	// Compare e.Values to rr.Rrdatas
@@ -91,21 +92,34 @@ func zoneDiffersFromCloud(e *zonefile.Entry, rr *dns.ResourceRecordSet) bool {
 			}
 		}
 		if !found {
+			fmt.Printf("%s not found in %s", string(ev), rr.Name)
 			return true
 		}
 	}
 	return false
 }
 
-func rrFromZoneEntry(e *zonefile.Entry) *dns.ResourceRecordSet {
+func addDomainForZone(name string, domain string) string {
+	if !strings.HasSuffix(name, ".") {
+		return name + "." + domain
+	}
+	return name
+}
+
+func rrFromZoneEntry(dnsSpec *CloudDNSSpec, e *zonefile.Entry) *dns.ResourceRecordSet {
 	rrdatas := []string{}
-	for _, e := range e.Values() {
-		rrdatas = append(rrdatas, string(e))
+	for _, rd := range e.Values() {
+		if string(e.Type()) == "CNAME" {
+			// for 'naked' cnames, add the domain to the rrdata
+			rrdatas = append(rrdatas, addDomainForZone(string(rd), *dnsSpec.domain))
+		} else {
+			rrdatas = append(rrdatas, string(rd))
+		}
 	}
 
 	ret := &dns.ResourceRecordSet{}
 	ret.Kind = string(e.Class())
-	ret.Name = string(e.Domain())
+	ret.Name = addDomainForZone(string(e.Domain()), *dnsSpec.domain)
 	// Fuck's sake.
 	if e.TTL() != nil {
 		ret.Ttl = int64(*e.TTL())
@@ -117,7 +131,37 @@ func rrFromZoneEntry(e *zonefile.Entry) *dns.ResourceRecordSet {
 }
 
 func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
-	return nil
+	call := dnsSpec.svc.Changes.Create(*dnsSpec.project, *dnsSpec.zone, dnsChange)
+	out, err := call.Do()
+	if err != nil {
+		log.Printf("Error updating Cloud DNS: %s", err)
+	} else {
+		log.Printf("Added [%d] and deleted [%d] records.",
+			len(out.Additions), len(out.Deletions))
+	}
+	return err
+}
+
+func populateDnsSpec(dnsSpec *CloudDNSSpec) error {
+	// This just populates 'domain' at the moment.
+	if dnsSpec.domain != nil {
+		return nil
+	}
+	call := dnsSpec.svc.ManagedZones.List(*dnsSpec.project)
+	out, err := call.Do()
+	if err != nil {
+		log.Printf("Error Getting zones for project %s: %s", *dnsSpec.project, err)
+		return err
+	} else {
+		for _, m := range out.ManagedZones {
+			if m.Name == *dnsSpec.zone {
+				dnsSpec.domain = &m.DnsName
+				return nil
+			}
+		}
+	}
+	errmsg := fmt.Sprintf("Managed zone not found in project %s: %s", *dnsSpec.project, *dnsSpec.zone)
+	return errors.New(errmsg)
 }
 
 func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, pruneMissing *bool) error {
@@ -152,38 +196,37 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 			log.Printf("Ignoring control entry: %s", e.Command())
 			continue
 		}
+
+		found := false
 		for _, rr := range rrs {
 			if string(e.Type()) == rr.Type && string(e.Domain()) == rr.Name {
-				if zoneDiffersFromCloud(&e, rr) {
+				found = true
+				if zoneDiffersFromCloud(&e, rr, dnsSpec.domain) {
 					// Modify means a delete of the exact old record plus
 					// addition of the new one.
-					change.Additions = append(change.Additions, rrFromZoneEntry(&e))
+					change.Additions = append(change.Additions, rrFromZoneEntry(dnsSpec, &e))
 					change.Deletions = append(change.Deletions, rr)
-					continue
-				}
-			}
-
-			if *pruneMissing {
-				found := false
-				for _, ee := range zf.Entries() {
-					if string(ee.Type()) == rr.Type && string(ee.Domain()) == rr.Name {
-						found = true
-					}
-				}
-				if found {
-					change.Deletions = append(change.Deletions, rr)
-					continue
+					break
 				}
 			}
 		}
-		// Not found in Cloud DNS, set for addition
-		change.Additions = append(change.Additions, rrFromZoneEntry(&e))
+		if !found {
+			// Not found in Cloud DNS, set for addition
+			change.Additions = append(change.Additions, rrFromZoneEntry(dnsSpec, &e))
+		}
+
+		// TODO: Implement --prune-missing
 	}
 	log.Printf("Adding %d entries to Cloud DNS", len(change.Additions))
 	for _, a := range change.Additions {
 		log.Printf(" - %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
 	}
 	log.Printf("Removing %d entries from Cloud DNS", len(change.Deletions))
+
+	if len(change.Additions) == 0 && len(change.Deletions) == 0 {
+		log.Printf("No Changes to do")
+		return nil
+	}
 
 	return processCloudDnsChange(dnsSpec, &change)
 }

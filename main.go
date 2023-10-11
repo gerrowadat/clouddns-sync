@@ -15,6 +15,7 @@ type CloudDNSSpec struct {
 	svc     *dns.Service
 	project *string
 	zone    *string
+	domain  *string
 }
 
 func main() {
@@ -23,7 +24,7 @@ func main() {
 	var cloudZone = flag.String("cloud-dns-zone", "", "Cloud DNS zone to operate on")
 	var zoneFilename = flag.String("zonefilename", "", "Local zone file to operate on")
 	var dryRun = flag.Bool("dry-run", false, "Do not update Cloud DNS, print what would be done")
-	var pruneMissing = flag.Bool("prune-mising", false, "on putzonefile, prune cloud dns entries not in zone file")
+	var pruneMissing = flag.Bool("prune-missing", false, "on putzonefile, prune cloud dns entries not in zone file")
 	flag.Parse()
 
 	// Verb and flag verification
@@ -69,6 +70,11 @@ func main() {
 		svc:     dnsservice,
 		project: cloudProject,
 		zone:    cloudZone,
+	}
+
+	err = populateDnsSpec(dns_spec)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	log.Print("Found zone in Cloud DNS")

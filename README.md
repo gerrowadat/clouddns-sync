@@ -41,7 +41,7 @@ Now, delegate dns for the (sub)domain you want to whatever is in the output of `
 Congrats! you now have a useless DNS zone with no records! You can add them with the `gcloud` command if you like, refer to the docs.
 
 
-# Tool Usage (NOT IMPLEMENTED YET)
+# Tool Usage
 
 If you want to spit out a mostly valid zonefile from your gcloud-dns zone, this will do it:
 
@@ -52,3 +52,11 @@ If you have a zonefile, slurp it into gcloud DNS by doing this:
 `clouddns-sync --json-keyfile=mykeyfile.json --cloud-project=mydnsproject --cloud-dns-zone=myzone --zonefile=myzonefile putzonefile`
 
 You can add `--dry-run` to putzonefile to see what we'd do. You can also add `--prune-missing` to remove RRs that aren't in your zonefile but are in gcloud.
+
+Note that the zonefile parsing is pretty janky and likely won't like shortcuts like barenames for hosts and multiple A records for a single name, etc. 
+
+My own use case is to do this once and then do future updates from a data source more reliable than your grandad's text file.
+
+# Update from Nomad cluster (NOT IMPLEMENTED YET)
+
+TODO
