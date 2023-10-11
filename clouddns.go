@@ -12,23 +12,6 @@ import (
 	"google.golang.org/api/dns/v1"
 )
 
-func getCloudManagedZones(dnsSpec *CloudDNSSpec) ([]*dns.ManagedZone, error) {
-	nextPageToken := ""
-	ret := []*dns.ManagedZone{}
-	for {
-		out, err := dnsSpec.svc.ManagedZones.List(*dnsSpec.project).PageToken(nextPageToken).Do()
-		if err != nil {
-			return ret, err
-		}
-		ret = append(ret, out.ManagedZones...)
-		if out.NextPageToken == "" {
-			break
-		}
-		nextPageToken = out.NextPageToken
-	}
-	return ret, nil
-}
-
 func getResourceRecordSetsForZone(dnsSpec *CloudDNSSpec) ([]*dns.ResourceRecordSet, error) {
 	nextPageToken := ""
 	ret := []*dns.ResourceRecordSet{}
