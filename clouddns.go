@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -71,28 +70,25 @@ func dumpZonefile(dnsSpec *CloudDNSSpec) {
 	}
 }
 
-func zoneDiffersFromCloud(e *zonefile.Entry, rr *dns.ResourceRecordSet, dnsDomain *string) bool {
-	// I'm not usually a fanboy of reading the rfc and naming
-	// your data types accordingly, but jaysis.
+func rrsetsDiffer(x *dns.ResourceRecordSet, y *dns.ResourceRecordSet) bool {
+	if x.Type != y.Type ||
+		x.Name != y.Name {
+		return true
+	}
 
-	if string(e.Type()) != rr.Type ||
-		string(e.Domain()) != rr.Name {
+	if len(x.Rrdatas) != len(y.Rrdatas) {
 		return true
 	}
-	// Compare e.Values to rr.Rrdatas
-	// Also it's rrdatums, you clod.
-	if len(e.Values()) != len(rr.Rrdatas) {
-		return true
-	}
-	for _, ev := range e.Values() {
+
+	for _, xv := range x.Rrdatas {
 		found := false
-		for _, rv := range rr.Rrdatas {
-			if rv == string(ev) {
+		for _, yv := range y.Rrdatas {
+			if xv == yv {
 				found = true
 			}
 		}
 		if !found {
-			fmt.Printf("%s not found in %s", string(ev), rr.Name)
+			fmt.Printf("%s not found in %s", xv, y.Name)
 			return true
 		}
 	}
@@ -104,30 +100,6 @@ func addDomainForZone(name string, domain string) string {
 		return name + "." + domain
 	}
 	return name
-}
-
-func rrFromZoneEntry(dnsSpec *CloudDNSSpec, e *zonefile.Entry) *dns.ResourceRecordSet {
-	rrdatas := []string{}
-	for _, rd := range e.Values() {
-		if string(e.Type()) == "CNAME" {
-			// for 'naked' cnames, add the domain to the rrdata
-			rrdatas = append(rrdatas, addDomainForZone(string(rd), *dnsSpec.domain))
-		} else {
-			rrdatas = append(rrdatas, string(rd))
-		}
-	}
-
-	ret := &dns.ResourceRecordSet{}
-	ret.Kind = string(e.Class())
-	ret.Name = addDomainForZone(string(e.Domain()), *dnsSpec.domain)
-	// Fuck's sake.
-	if e.TTL() != nil {
-		ret.Ttl = int64(*e.TTL())
-	}
-	ret.Type = string(e.Type())
-	ret.Rrdatas = rrdatas
-
-	return ret
 }
 
 func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
@@ -164,6 +136,53 @@ func populateDnsSpec(dnsSpec *CloudDNSSpec) error {
 	return errors.New(errmsg)
 }
 
+func mergeZoneEntryIntoRrsets(dnsSpec *CloudDNSSpec, rrs []*dns.ResourceRecordSet, e zonefile.Entry) []*dns.ResourceRecordSet {
+	// Ignore control entries
+	if e.Command() != nil {
+		return rrs
+	}
+
+	// fully qualify the name, as this is what cloud dns does.
+	e_fqdn := addDomainForZone(string(e.Domain()), *dnsSpec.domain)
+	if string(e.Domain()) == "@" {
+		// Technically it's whatever $ORIGIN is set to but whatevsies it's only DNS.
+		e_fqdn = *dnsSpec.domain
+	}
+
+	// Create a new rrset if this is the first sighting of this name,
+	// otherwise add the new rr to the existing one.
+	found := false
+	this_rrset := &dns.ResourceRecordSet{}
+	for _, rr := range rrs {
+		if rr.Name == e_fqdn && rr.Type != "SOA" {
+			found = true
+			this_rrset = rr
+		}
+	}
+	if !found {
+		rrs = append(rrs, this_rrset)
+	}
+
+	// Now, populate the rrset, either adding or appending the new answer.
+	for _, rd := range e.Values() {
+		if string(e.Type()) == "CNAME" {
+			// for 'naked' cnames, add the domain to the rrdata
+			this_rrset.Rrdatas = append(this_rrset.Rrdatas, addDomainForZone(string(rd), *dnsSpec.domain))
+		} else {
+			this_rrset.Rrdatas = append(this_rrset.Rrdatas, string(rd))
+		}
+	}
+	this_rrset.Kind = string(e.Class())
+	this_rrset.Name = e_fqdn
+	// Fuck's sake.
+	if e.TTL() != nil {
+		this_rrset.Ttl = int64(*e.TTL())
+	}
+	this_rrset.Type = string(e.Type())
+
+	return rrs
+}
+
 func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, pruneMissing *bool) error {
 	data, err := os.ReadFile(*zoneFilename)
 	if err != nil {
@@ -177,52 +196,76 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 		return err
 	}
 
+	// The format go-zonefile uses to represent RRs gives me hives.
+	// Convert the go-zonefile format to a list of *dns.ResourceRecordSet
+	zone_rrs := []*dns.ResourceRecordSet{}
+
+	for _, e := range zf.Entries() {
+		zone_rrs = mergeZoneEntryIntoRrsets(dnsSpec, zone_rrs, e)
+	}
+
+	log.Printf("Processing %d zonefile entries rendered %d rrsets", len(zf.Entries()), len(zone_rrs))
+
 	change := dns.Change{}
 
-	rrs, err := getResourceRecordSetsForZone(dnsSpec)
+	cloud_rrs, err := getResourceRecordSetsForZone(dnsSpec)
 	if err != nil {
 		log.Fatal("Getting RRs for zone:", dnsSpec.zone)
 	}
 
-	for _, e := range zf.Entries() {
+	for _, z := range zone_rrs {
 		// Ignore SOA, gcloud looks after this.
-		if bytes.Equal(e.Type(), []byte("SOA")) ||
-			bytes.Equal(e.Type(), []byte("NS")) {
-			log.Printf("Ignoring SOA/NS")
-			continue
-		}
-		// Also ignore control entries (for now I guess?)
-		if e.Command() != nil {
-			log.Printf("Ignoring control entry: %s", e.Command())
+		if z.Type == "SOA" || z.Type == "NS" {
+			log.Printf("Ignoring SOA/NS record")
 			continue
 		}
 
 		found := false
-		for _, rr := range rrs {
-			if string(e.Type()) == rr.Type && string(e.Domain()) == rr.Name {
+		for _, c := range cloud_rrs {
+			if z.Type == c.Type && z.Name == c.Name {
 				found = true
-				if zoneDiffersFromCloud(&e, rr, dnsSpec.domain) {
+				if rrsetsDiffer(z, c) {
 					// Modify means a delete of the exact old record plus
 					// addition of the new one.
-					change.Additions = append(change.Additions, rrFromZoneEntry(dnsSpec, &e))
-					change.Deletions = append(change.Deletions, rr)
+					change.Additions = append(change.Additions, z)
+					change.Deletions = append(change.Deletions, c)
 					break
 				}
 			}
 		}
 		if !found {
 			// Not found in Cloud DNS, set for addition
-			change.Additions = append(change.Additions, rrFromZoneEntry(dnsSpec, &e))
+			change.Additions = append(change.Additions, z)
 		}
 
 		// TODO: Implement --prune-missing
 	}
+	if *pruneMissing {
+		for _, c := range cloud_rrs {
+			found := false
+			if c.Type == "SOA" || c.Type == "NS" {
+				continue
+			}
+			for _, z := range zone_rrs {
+				if c.Name == z.Name && c.Type == z.Type {
+					found = true
+				}
+			}
+			if !found {
+				// Missing from zone file, prune from cloud.
+				change.Deletions = append(change.Deletions, c)
+			}
+		}
+
+	}
 	log.Printf("Adding %d entries to Cloud DNS", len(change.Additions))
 	for _, a := range change.Additions {
-		log.Printf(" - %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
+		log.Printf(" + %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
 	}
 	log.Printf("Removing %d entries from Cloud DNS", len(change.Deletions))
-
+	for _, a := range change.Deletions {
+		log.Printf(" - %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
+	}
 	if len(change.Additions) == 0 && len(change.Deletions) == 0 {
 		log.Printf("No Changes to do")
 		return nil
