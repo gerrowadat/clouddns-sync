@@ -53,8 +53,6 @@ If you have a zonefile, slurp it into gcloud DNS by doing this:
 
 You can add `--dry-run` to putzonefile to see what we'd do. You can also add `--prune-missing` to remove RRs that aren't in your zonefile but are in gcloud.
 
-Note that the zonefile parsing is pretty janky and likely won't like shortcuts like barenames for hosts and multiple A records for a single name, etc. 
-
 My own use case is to do this once and then do future updates from a data source more reliable than your grandad's text file.
 
 # Update from Nomad cluster (NOT IMPLEMENTED YET)
