@@ -55,6 +55,8 @@ You can add `--dry-run` to putzonefile to see what we'd do. You can also add `--
 
 My own use case is to do this once and then do future updates from a data source more reliable than your grandad's text file.
 
-# Update from Nomad cluster (NOT IMPLEMENTED YET)
+# Update from Nomad cluster (EXPERIMENTAL)
 
-TODO
+```clouddns-sync --cloud-project=mydnsproject --cloud-dns-zone=myzone --nomad-server-uri=http://anynomadserver:4646/ nomad_sync```
+
+Right now we build a list of A records by inspecting all allocs and pointing *jobname*.domain to all nodes that hold an alloc in that job. That might not be what you want, but the important thing is that it's what I want. Patches welcome!
