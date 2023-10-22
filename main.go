@@ -25,6 +25,10 @@ func main() {
 	var zoneFilename = flag.String("zonefilename", "", "Local zone file to operate on")
 	var dryRun = flag.Bool("dry-run", false, "Do not update Cloud DNS, print what would be done")
 	var pruneMissing = flag.Bool("prune-missing", false, "on putzonefile, prune cloud dns entries not in zone file")
+
+	var nomadServerURI = flag.String("nomad-server-uri", "http://localhost:4646", "URI for a nomad server to talk to.")
+	var nomadTokenFile = flag.String("nomad-token-file", "", "file to read ou rnomad token from")
+
 	flag.Parse()
 
 	// Verb and flag verification
@@ -84,7 +88,22 @@ func main() {
 		dumpZonefile(dns_spec)
 	case "putzonefile":
 		uploadZonefile(dns_spec, zoneFilename, dryRun, pruneMissing)
+	case "nomad_sync":
+		nomadSpec := &NomadSpec{
+			uri: *nomadServerURI,
+		}
+		if *nomadTokenFile != "" {
+			nomadToken, err := os.ReadFile(*nomadTokenFile)
+			if err != nil {
+				log.Fatal("Reading Nomad Token: ", err)
+			}
+			nomadSpec.token = string(nomadToken)
+		} else {
+			nomadSpec.token = ""
+		}
+
+		syncNomad(dns_spec, nomadSpec, dryRun)
 	default:
-		log.Fatal("Uknown verb: ", verb)
+		log.Fatal("Unknown verb: ", verb)
 	}
 }

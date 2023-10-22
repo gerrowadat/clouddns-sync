@@ -114,6 +114,71 @@ func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
 	return err
 }
 
+func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo) (*dns.Change, error) {
+	ret := &dns.Change{}
+
+	// Build a new TaskInfo with fully qualified dns names.
+	fq_taskinfo := []TaskInfo{}
+	for _, t := range tasks {
+		fq_taskinfo = append(fq_taskinfo, TaskInfo{
+			jobid: addDomainForZone(t.jobid, *dnsSpec.domain),
+			ip:    t.ip,
+		})
+	}
+
+	nomad_rrs, err := buildTaskInfoToRrsets(fq_taskinfo)
+	if err != nil {
+		log.Fatal("Converting Nomad RRs for zone:", dnsSpec.zone)
+	}
+
+	cloud_rrs, err := getResourceRecordSetsForZone(dnsSpec)
+	if err != nil {
+		log.Fatal("Getting Cloud DNS RRs for zone:", dnsSpec.zone)
+	}
+
+	for _, nr := range nomad_rrs {
+		for _, cr := range cloud_rrs {
+			if nr.Name == cr.Name && nr.Type == cr.Type {
+				if rrsetsDiffer(nr, cr) {
+					// pointer in nomad differs from cloud, delete cloud record.
+					ret.Deletions = append(ret.Deletions, cr)
+				}
+			}
+		}
+		ret.Additions = append(ret.Additions, nr)
+	}
+	return ret, nil
+}
+
+func buildTaskInfoToRrsets(tasks []TaskInfo) ([]*dns.ResourceRecordSet, error) {
+	ret := []*dns.ResourceRecordSet{}
+
+	for _, t := range tasks {
+		ret = mergeAnswerToRrsets(ret, t.jobid, t.ip)
+	}
+	return ret, nil
+}
+
+func mergeAnswerToRrsets(rrsets []*dns.ResourceRecordSet, name string, ip string) []*dns.ResourceRecordSet {
+	// Only handles simple A records.
+	for _, rr := range rrsets {
+		if rr.Name == name {
+			// Name already exists, append the additional IP.
+			rr.Rrdatas = append(rr.Rrdatas, ip)
+			return rrsets
+		}
+	}
+	// Not found, add new rrdata
+	new_rr := &dns.ResourceRecordSet{
+		Name: name,
+		Type: "A",
+	}
+	new_rr.Rrdatas = []string{ip}
+	fmt.Println("Adding new rrset:", name)
+	rrsets = append(rrsets, new_rr)
+	return rrsets
+}
+
 func populateDnsSpec(dnsSpec *CloudDNSSpec) error {
 	// This just populates 'domain' at the moment.
 	if dnsSpec.domain != nil {
