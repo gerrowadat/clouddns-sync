@@ -114,7 +114,7 @@ func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
 	return err
 }
 
-func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo) (*dns.Change, error) {
+func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing bool) (*dns.Change, error) {
 	ret := &dns.Change{}
 
 	// Build a new TaskInfo with fully qualified dns names.
@@ -146,6 +146,21 @@ func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo) (*dns.Change, 
 			}
 		}
 		ret.Additions = append(ret.Additions, nr)
+	}
+
+	if pruneMissing {
+		for _, cr := range cloud_rrs {
+			found := false
+			for _, nr := range nomad_rrs {
+				if nr.Name == cr.Name && nr.Type == cr.Type {
+					found = true
+				}
+			}
+			if !found {
+				// Record missing from nomad, delete from cloud.
+				ret.Deletions = append(ret.Deletions, cr)
+			}
+		}
 	}
 	return ret, nil
 }
@@ -302,8 +317,6 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 			// Not found in Cloud DNS, set for addition
 			change.Additions = append(change.Additions, z)
 		}
-
-		// TODO: Implement --prune-missing
 	}
 	if *pruneMissing {
 		for _, c := range cloud_rrs {

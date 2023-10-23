@@ -102,7 +102,7 @@ func main() {
 			nomadSpec.token = ""
 		}
 
-		syncNomad(dns_spec, nomadSpec, dryRun)
+		syncNomad(dns_spec, nomadSpec, dryRun, pruneMissing)
 	default:
 		log.Fatal("Unknown verb: ", verb)
 	}
