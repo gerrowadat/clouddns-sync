@@ -1,4 +1,4 @@
-module clouddns-sync
+module github.com/gerrowadat/clouddns-sync
 
 go 1.21
 
