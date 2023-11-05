@@ -18,12 +18,12 @@ gcloud config set project mydnsproject
 # Enable Cloud DNS for this project
 gcloud services enable dns.googleapis.com
 
-# Set up your first zone.
+# Set up your first zone. Note trailing period.
 gcloud dns managed-zones create myzone \
-    --dns-name=myzone.mydomain.tld --description="My Zone"
+    --dns-name=myzone.mydomain.tld. --description="My Zone"
 
 # Set up a service account to admininster just DNS
-gcloud iam service-accounts create gcloud-dns-sync
+gcloud iam service-accounts create cloud-dns-sync
 
 # Add your service account to the DNS Administrator role for this project
 gcloud projects add-iam-policy-binding myproject \
