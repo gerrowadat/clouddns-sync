@@ -53,6 +53,21 @@ func Test_rrsetsEqual(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "DifferingTtl",
+			args: args{
+				x: &dns.ResourceRecordSet{
+					Type: "A",
+					Name: "hostname.example.com",
+					Ttl:  60,
+				},
+				y: &dns.ResourceRecordSet{
+					Type: "A",
+					Name: "hostname.example.com",
+				},
+			},
+			want: false,
+		},
+		{
 			name: "DifferingRRdatas_len",
 			args: args{
 				x: &dns.ResourceRecordSet{

@@ -92,7 +92,8 @@ func dumpZonefile(dnsSpec *CloudDNSSpec) {
 
 func rrsetsEqual(x *dns.ResourceRecordSet, y *dns.ResourceRecordSet) bool {
 	if x.Type != y.Type ||
-		x.Name != y.Name {
+		x.Name != y.Name ||
+		x.Ttl != y.Ttl {
 		return false
 	}
 
