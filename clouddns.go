@@ -90,14 +90,14 @@ func dumpZonefile(dnsSpec *CloudDNSSpec) {
 
 }
 
-func rrsetsDiffer(x *dns.ResourceRecordSet, y *dns.ResourceRecordSet) bool {
+func rrsetsEqual(x *dns.ResourceRecordSet, y *dns.ResourceRecordSet) bool {
 	if x.Type != y.Type ||
 		x.Name != y.Name {
-		return true
+		return false
 	}
 
 	if len(x.Rrdatas) != len(y.Rrdatas) {
-		return true
+		return false
 	}
 
 	for _, xv := range x.Rrdatas {
@@ -108,11 +108,10 @@ func rrsetsDiffer(x *dns.ResourceRecordSet, y *dns.ResourceRecordSet) bool {
 			}
 		}
 		if !found {
-			fmt.Printf("%s not found in %s", xv, y.Name)
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func addDomainForZone(name string, domain string) string {
@@ -165,7 +164,7 @@ func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing b
 		for _, cr := range cloud_rrs {
 			if nr.Name == cr.Name && nr.Type == cr.Type {
 				in_cloud = true
-				if rrsetsDiffer(nr, cr) {
+				if !rrsetsEqual(nr, cr) {
 					// pointer in nomad differs from cloud.
 					// Delete cloud record and replace.
 					log.Printf("Updating %s record in cloud: %s", nr.Type, nr.Name)
@@ -334,7 +333,7 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 		for _, c := range cloud_rrs {
 			if z.Type == c.Type && z.Name == c.Name {
 				found = true
-				if rrsetsDiffer(z, c) {
+				if !rrsetsEqual(z, c) {
 					// Modify means a delete of the exact old record plus
 					// addition of the new one.
 					change.Additions = append(change.Additions, z)
