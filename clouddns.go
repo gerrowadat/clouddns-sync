@@ -123,6 +123,10 @@ func addDomainForZone(name string, domain string) string {
 }
 
 func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
+	if len(dnsChange.Additions) == 0 && len(dnsChange.Deletions) == 0 {
+		log.Printf("No DNS changes for Cloud")
+		return nil
+	}
 	call := dnsSpec.svc.Changes.Create(*dnsSpec.project, *dnsSpec.zone, dnsChange)
 	out, err := call.Do()
 	if err != nil {
@@ -157,15 +161,23 @@ func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing b
 	}
 
 	for _, nr := range nomad_rrs {
+		in_cloud := false
 		for _, cr := range cloud_rrs {
 			if nr.Name == cr.Name && nr.Type == cr.Type {
+				in_cloud = true
 				if rrsetsDiffer(nr, cr) {
-					// pointer in nomad differs from cloud, delete cloud record.
+					// pointer in nomad differs from cloud.
+					// Delete cloud record and replace.
+					log.Printf("Updating %s record in cloud: %s", nr.Type, nr.Name)
 					ret.Deletions = append(ret.Deletions, cr)
+					ret.Additions = append(ret.Additions, nr)
 				}
 			}
 		}
-		ret.Additions = append(ret.Additions, nr)
+		if !in_cloud {
+			log.Printf("Adding %s record in cloud: %s", nr.Type, nr.Name)
+			ret.Additions = append(ret.Additions, nr)
+		}
 	}
 
 	if pruneMissing {
@@ -209,7 +221,6 @@ func mergeAnswerToRrsets(rrsets []*dns.ResourceRecordSet, name string, ip string
 		Type: "A",
 	}
 	new_rr.Rrdatas = []string{ip}
-	fmt.Println("Adding new rrset:", name)
 	rrsets = append(rrsets, new_rr)
 	return rrsets
 }

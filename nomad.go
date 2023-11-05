@@ -22,6 +22,8 @@ func syncNomad(dnsSpec *CloudDNSSpec, nomadSpec *NomadSpec, dryRun *bool, pruneM
 	//c := make(<-chan *dns.Change)
 	jobLocs := getNomadTaskLocations(nomadSpec)
 
+	log.Printf("Found %d nomad jobs", len(jobLocs))
+
 	change, err := buildNomadDnsChange(dnsSpec, jobLocs, *pruneMissing)
 	if err != nil {
 		log.Fatal("Building DNS change from nomad info:", err)
