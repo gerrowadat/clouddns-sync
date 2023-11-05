@@ -65,9 +65,29 @@ func dumpZonefile(dnsSpec *CloudDNSSpec) {
 		log.Fatal("Getting RRs for zone:", dnsSpec.zone)
 	}
 
-	for _, rr := range rrs {
-		fmt.Println(ZoneFileFragment(rr))
+	// Print in order of SOA, NS, A, MX CNAME, Other
+	rtypes := []string{"SOA", "A", "MX", "CNAME"}
+	for _, rt := range rtypes {
+		for _, rr := range rrs {
+			if rr.Type == rt {
+				fmt.Println(ZoneFileFragment(rr))
+			}
+		}
 	}
+	// Other.
+	for _, rr := range rrs {
+		othertype := true
+		for _, rt := range rtypes {
+			if rr.Type == rt {
+				othertype = false
+			}
+		}
+
+		if othertype {
+			fmt.Println(ZoneFileFragment(rr))
+		}
+	}
+
 }
 
 func rrsetsDiffer(x *dns.ResourceRecordSet, y *dns.ResourceRecordSet) bool {
