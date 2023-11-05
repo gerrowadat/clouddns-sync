@@ -242,6 +242,11 @@ func mergeZoneEntryIntoRrsets(dnsSpec *CloudDNSSpec, rrs []*dns.ResourceRecordSe
 		return rrs
 	}
 
+	// Also ignore SOA/NS records, since these are managed by gcloud.
+	if string(e.Type()) == "SOA" || string(e.Type()) == "NS" {
+		return rrs
+	}
+
 	// fully qualify the name, as this is what cloud dns does.
 	e_fqdn := addDomainForZone(string(e.Domain()), *dnsSpec.domain)
 	if string(e.Domain()) == "@" {
@@ -254,7 +259,7 @@ func mergeZoneEntryIntoRrsets(dnsSpec *CloudDNSSpec, rrs []*dns.ResourceRecordSe
 	found := false
 	this_rrset := &dns.ResourceRecordSet{}
 	for _, rr := range rrs {
-		if rr.Name == e_fqdn && rr.Type != "SOA" {
+		if rr.Name == e_fqdn && rr.Type != "SOA" && rr.Type != "NS" {
 			found = true
 			this_rrset = rr
 		}
@@ -314,12 +319,6 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 	}
 
 	for _, z := range zone_rrs {
-		// Ignore SOA, gcloud looks after this.
-		if z.Type == "SOA" || z.Type == "NS" {
-			log.Printf("Ignoring SOA/NS record")
-			continue
-		}
-
 		found := false
 		for _, c := range cloud_rrs {
 			if z.Type == c.Type && z.Name == c.Name {
