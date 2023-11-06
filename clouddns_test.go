@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 
 	"google.golang.org/api/dns/v1"
@@ -181,6 +182,117 @@ func TestZoneFileFragment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ZoneFileFragment(tt.args.rr); got != tt.want {
 				t.Errorf("ZoneFileFragment() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_mergeAnswerToRrsets(t *testing.T) {
+	type args struct {
+		rrsets []*dns.ResourceRecordSet
+		name   string
+		ip     string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []*dns.ResourceRecordSet
+	}{
+		// TODO: Add test cases.
+		{
+			name: "MergeSimpleRecordtoNothing",
+			args: args{
+				rrsets: []*dns.ResourceRecordSet{},
+				name:   "doot",
+				ip:     "1.2.3.4",
+			},
+			want: []*dns.ResourceRecordSet{
+				{
+					Name:    "doot",
+					Type:    "A",
+					Rrdatas: []string{"1.2.3.4"},
+				},
+			},
+		},
+		{
+			name: "MergeSimpleRecordtoOther",
+			args: args{
+				rrsets: []*dns.ResourceRecordSet{
+					{
+						Name:    "blarg",
+						Type:    "A",
+						Rrdatas: []string{"1.2.3.4"},
+					},
+				},
+				name: "doot",
+				ip:   "5.6.7.8",
+			},
+			want: []*dns.ResourceRecordSet{
+				{
+					Name:    "blarg",
+					Type:    "A",
+					Rrdatas: []string{"1.2.3.4"},
+				},
+				{
+					Name:    "doot",
+					Type:    "A",
+					Rrdatas: []string{"5.6.7.8"},
+				},
+			},
+		},
+		{
+			name: "MergeSimpleRecordtoSameName",
+			args: args{
+				rrsets: []*dns.ResourceRecordSet{
+					{
+						Name:    "doot",
+						Type:    "A",
+						Rrdatas: []string{"1.2.3.4"},
+					},
+				},
+				name: "doot",
+				ip:   "5.6.7.8",
+			},
+			want: []*dns.ResourceRecordSet{
+				{
+					Name:    "doot",
+					Type:    "A",
+					Rrdatas: []string{"1.2.3.4", "5.6.7.8"},
+				},
+			},
+		},
+		{
+			name: "MergeSimpleRecordtoSameNameSameIP",
+			args: args{
+				rrsets: []*dns.ResourceRecordSet{
+					{
+						Name:    "doot",
+						Type:    "A",
+						Rrdatas: []string{"1.2.3.4"},
+					},
+				},
+				name: "doot",
+				ip:   "1.2.3.4",
+			},
+			want: []*dns.ResourceRecordSet{
+				{
+					Name:    "doot",
+					Type:    "A",
+					Rrdatas: []string{"1.2.3.4"},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := mergeAnswerToRrsets(tt.args.rrsets, tt.args.name, tt.args.ip); !reflect.DeepEqual(got, tt.want) {
+				for _, rr := range got {
+					t.Logf("Got: %s (%s), %d answers.", rr.Name, rr.Type, len(rr.Rrdatas))
+					for _, rrd := range rr.Rrdatas {
+						t.Logf("Got: - %s", rrd)
+					}
+				}
+				t.Errorf("mergeAnswerToRrsets() = %v records, want %v", len(got), len(tt.want))
 			}
 		})
 	}

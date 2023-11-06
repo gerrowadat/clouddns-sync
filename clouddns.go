@@ -210,8 +210,16 @@ func mergeAnswerToRrsets(rrsets []*dns.ResourceRecordSet, name string, ip string
 	// Only handles simple A records.
 	for _, rr := range rrsets {
 		if rr.Name == name {
-			// Name already exists, append the additional IP.
-			rr.Rrdatas = append(rr.Rrdatas, ip)
+			// Name already exists, append the additional IP (if it's not there already)
+			ip_found := false
+			for _, rrd := range rr.Rrdatas {
+				if rrd == ip {
+					ip_found = true
+				}
+			}
+			if !ip_found {
+				rr.Rrdatas = append(rr.Rrdatas, ip)
+			}
 			return rrsets
 		}
 	}
