@@ -190,9 +190,10 @@ func TestZoneFileFragment(t *testing.T) {
 
 func Test_mergeAnswerToRrsets(t *testing.T) {
 	type args struct {
-		rrsets []*dns.ResourceRecordSet
-		name   string
-		ip     string
+		rrsets      []*dns.ResourceRecordSet
+		name        string
+		ip          string
+		default_ttl int
 	}
 	tests := []struct {
 		name string
@@ -285,9 +286,9 @@ func Test_mergeAnswerToRrsets(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := mergeAnswerToRrsets(tt.args.rrsets, tt.args.name, tt.args.ip); !reflect.DeepEqual(got, tt.want) {
+			if got := mergeAnswerToRrsets(tt.args.rrsets, tt.args.name, tt.args.ip, tt.args.default_ttl); !reflect.DeepEqual(got, tt.want) {
 				for _, rr := range got {
-					t.Logf("Got: %s (%s), %d answers.", rr.Name, rr.Type, len(rr.Rrdatas))
+					t.Logf("Got: %s (%s) TTL %d, %d answers.", rr.Name, rr.Type, rr.Ttl, len(rr.Rrdatas))
 					for _, rrd := range rr.Rrdatas {
 						t.Logf("Got: - %s", rrd)
 					}

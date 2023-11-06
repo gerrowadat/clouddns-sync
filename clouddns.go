@@ -150,7 +150,7 @@ func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing b
 		})
 	}
 
-	nomad_rrs, err := buildTaskInfoToRrsets(fq_taskinfo)
+	nomad_rrs, err := buildTaskInfoToRrsets(fq_taskinfo, dnsSpec.default_ttl)
 	if err != nil {
 		log.Fatal("Converting Nomad RRs for zone:", dnsSpec.zone)
 	}
@@ -197,16 +197,19 @@ func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing b
 	return ret, nil
 }
 
-func buildTaskInfoToRrsets(tasks []TaskInfo) ([]*dns.ResourceRecordSet, error) {
+func buildTaskInfoToRrsets(tasks []TaskInfo, default_ttl *int) ([]*dns.ResourceRecordSet, error) {
+	// Take a set of TaskInfo (essentially name to IP) and return a slice of ResourceRecordSet
+	// use default_ttl as the ttl of all records (nomad has no opinion on ttl).
 	ret := []*dns.ResourceRecordSet{}
 
 	for _, t := range tasks {
-		ret = mergeAnswerToRrsets(ret, t.jobid, t.ip)
+		ret = mergeAnswerToRrsets(ret, t.jobid, t.ip, *default_ttl)
 	}
 	return ret, nil
 }
 
-func mergeAnswerToRrsets(rrsets []*dns.ResourceRecordSet, name string, ip string) []*dns.ResourceRecordSet {
+func mergeAnswerToRrsets(rrsets []*dns.ResourceRecordSet, name string, ip string, default_ttl int) []*dns.ResourceRecordSet {
+	// merges an answer that point name to ip into these rrsets.
 	// Only handles simple A records.
 	for _, rr := range rrsets {
 		if rr.Name == name {
@@ -227,6 +230,7 @@ func mergeAnswerToRrsets(rrsets []*dns.ResourceRecordSet, name string, ip string
 	new_rr := &dns.ResourceRecordSet{
 		Name: name,
 		Type: "A",
+		Ttl:  int64(default_ttl),
 	}
 	new_rr.Rrdatas = []string{ip}
 	rrsets = append(rrsets, new_rr)

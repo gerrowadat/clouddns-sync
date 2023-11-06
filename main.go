@@ -12,16 +12,19 @@ import (
 )
 
 type CloudDNSSpec struct {
-	svc     *dns.Service
-	project *string
-	zone    *string
-	domain  *string
+	svc         *dns.Service
+	project     *string
+	zone        *string
+	domain      *string
+	default_ttl *int
 }
 
 func main() {
 	var jsonKeyfile = flag.String("json-keyfile", "key.json", "json credentials file for Cloud DNS")
 	var cloudProject = flag.String("cloud-project", "", "Google Cloud Project")
 	var cloudZone = flag.String("cloud-dns-zone", "", "Cloud DNS zone to operate on")
+	var defaultCloudTtl = flag.Int("cloud-dns-default-ttl", 300, "Default TTL for Cloud DNS records")
+
 	var zoneFilename = flag.String("zonefilename", "", "Local zone file to operate on")
 	var dryRun = flag.Bool("dry-run", false, "Do not update Cloud DNS, print what would be done")
 	var pruneMissing = flag.Bool("prune-missing", false, "on putzonefile, prune cloud dns entries not in zone file")
@@ -71,9 +74,10 @@ func main() {
 	}
 
 	dns_spec := &CloudDNSSpec{
-		svc:     dnsservice,
-		project: cloudProject,
-		zone:    cloudZone,
+		svc:         dnsservice,
+		project:     cloudProject,
+		zone:        cloudZone,
+		default_ttl: defaultCloudTtl,
 	}
 
 	err = populateDnsSpec(dns_spec)
