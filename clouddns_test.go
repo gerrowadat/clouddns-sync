@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	zonefile "github.com/bwesterb/go-zonefile"
 	"google.golang.org/api/dns/v1"
 )
 
@@ -198,7 +199,6 @@ func Test_mergeAnswerToRrsets(t *testing.T) {
 		args args
 		want []*dns.ResourceRecordSet
 	}{
-		// TODO: Add test cases.
 		{
 			name: "MergeSimpleRecordtoNothing",
 			args: args{
@@ -293,6 +293,54 @@ func Test_mergeAnswerToRrsets(t *testing.T) {
 					}
 				}
 				t.Errorf("mergeAnswerToRrsets() = %v records, want %v", len(got), len(tt.want))
+			}
+		})
+	}
+}
+
+func sloppyParseEntry(entry string) zonefile.Entry {
+	ret, _ := zonefile.ParseEntry([]byte(entry))
+	return ret
+}
+
+func Test_mergeZoneEntryIntoRrsets(t *testing.T) {
+
+	type args struct {
+		dnsSpec *CloudDNSSpec
+		rrs     []*dns.ResourceRecordSet
+		e       zonefile.Entry
+	}
+	tests := []struct {
+		name string
+		args args
+		want []*dns.ResourceRecordSet
+	}{
+		// TODO: Add test cases.
+		{
+			// ns and SOA records get ignored.
+			name: "mergeNS",
+			args: args{
+				dnsSpec: nil,
+				rrs:     []*dns.ResourceRecordSet{},
+				e:       sloppyParseEntry(" IN NS ns1.example.com."),
+			},
+			want: []*dns.ResourceRecordSet{},
+		},
+		{
+			// ns and SOA records get ignored.
+			name: "mergeSOA",
+			args: args{
+				dnsSpec: nil,
+				rrs:     []*dns.ResourceRecordSet{},
+				e:       sloppyParseEntry(" IN SOA doot. root.doot. 0 0 0 0 0 0"),
+			},
+			want: []*dns.ResourceRecordSet{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := mergeZoneEntryIntoRrsets(tt.args.dnsSpec, tt.args.rrs, tt.args.e); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("mergeZoneEntryIntoRrsets() = %v, want %v", got, tt.want)
 			}
 		})
 	}
