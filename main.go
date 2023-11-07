@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"time"
 
 	google_oauth "golang.org/x/oauth2/google"
 	"google.golang.org/api/dns/v1"
@@ -32,6 +33,7 @@ func main() {
 
 	var nomadServerURI = flag.String("nomad-server-uri", "http://localhost:4646", "URI for a nomad server to talk to.")
 	var nomadTokenFile = flag.String("nomad-token-file", "", "file to read ou rnomad token from")
+	var nomadSyncInterval = flag.Int("nomad-sync-interval-secs", 300, "seconds between nomad updates. set to -1 to sync once only.")
 
 	flag.Parse()
 
@@ -109,6 +111,13 @@ func main() {
 		}
 
 		syncNomad(dns_spec, nomadSpec, dryRun, pruneMissing)
+
+		if *nomadSyncInterval >= 0 {
+			for {
+				time.Sleep(time.Duration(*nomadSyncInterval) * time.Second)
+				syncNomad(dns_spec, nomadSpec, dryRun, pruneMissing)
+			}
+		}
 	default:
 		log.Fatal("Unknown verb: ", verb)
 	}
