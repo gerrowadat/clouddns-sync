@@ -1,12 +1,41 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	zonefile "github.com/bwesterb/go-zonefile"
 	"google.golang.org/api/dns/v1"
 )
+
+// Return a single-line description of an rrset
+func describeRrset(rr *dns.ResourceRecordSet) string {
+	return fmt.Sprintf("'%s' (%s) TTL %d : %s", rr.Name, rr.Type, rr.Ttl, strings.Join(rr.Rrdatas, ", "))
+}
+
+// Compare the fields we care about in a slice of *ResourceRecordSet to see
+// If they're 'equal' for our purposes.
+func rrsetListEquals(a, b []*dns.ResourceRecordSet) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, arr := range a {
+		found := false
+		for _, brr := range b {
+			if rrsetsEqual(arr, brr) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
 
 func Test_rrsetsEqual(t *testing.T) {
 	type args struct {
@@ -305,6 +334,7 @@ func sloppyParseEntry(entry string) zonefile.Entry {
 }
 
 func Test_mergeZoneEntryIntoRrsets(t *testing.T) {
+	test_domain := "mydomain.test."
 
 	type args struct {
 		dnsSpec *CloudDNSSpec
@@ -337,10 +367,34 @@ func Test_mergeZoneEntryIntoRrsets(t *testing.T) {
 			},
 			want: []*dns.ResourceRecordSet{},
 		},
+		{
+			// set a bare name and see if we get it qualified
+			name: "qualifyBareName",
+			args: args{
+				dnsSpec: &CloudDNSSpec{
+					domain: &test_domain,
+				},
+				rrs: []*dns.ResourceRecordSet{},
+				e:   sloppyParseEntry("barename IN A 1.2.3.4"),
+			},
+			want: []*dns.ResourceRecordSet{
+				{
+					Name:    string("barename." + test_domain),
+					Type:    "A",
+					Rrdatas: []string{"1.2.3.4"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := mergeZoneEntryIntoRrsets(tt.args.dnsSpec, tt.args.rrs, tt.args.e); !reflect.DeepEqual(got, tt.want) {
+			if got := mergeZoneEntryIntoRrsets(tt.args.dnsSpec, tt.args.rrs, tt.args.e); !rrsetListEquals(got, tt.want) {
+				for _, rr := range tt.want {
+					t.Logf("Want: %s", describeRrset(rr))
+				}
+				for _, rr := range got {
+					t.Logf("Got : %s", describeRrset(rr))
+				}
 				t.Errorf("mergeZoneEntryIntoRrsets() = %v, want %v", got, tt.want)
 			}
 		})
