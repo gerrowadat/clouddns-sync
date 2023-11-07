@@ -175,7 +175,7 @@ func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing b
 		return nil, err
 	}
 
-	ret := buildDnsChange(cloud_rrs, nomad_rrs, &pruneMissing)
+	ret := buildDnsChange(cloud_rrs, nomad_rrs, pruneMissing)
 
 	return ret, nil
 }
@@ -322,12 +322,12 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 		log.Fatal("Getting RRs for zone:", dnsSpec.zone)
 	}
 
-	change := buildDnsChange(cloud_rrs, zone_rrs, pruneMissing)
+	change := buildDnsChange(cloud_rrs, zone_rrs, *pruneMissing)
 
 	return processCloudDnsChange(dnsSpec, change)
 }
 
-func buildDnsChange(cloud_rrs, zone_rrs []*dns.ResourceRecordSet, prune_missing *bool) *dns.Change {
+func buildDnsChange(cloud_rrs, zone_rrs []*dns.ResourceRecordSet, prune_missing bool) *dns.Change {
 
 	ret := dns.Change{}
 
@@ -350,7 +350,7 @@ func buildDnsChange(cloud_rrs, zone_rrs []*dns.ResourceRecordSet, prune_missing 
 			ret.Additions = append(ret.Additions, z)
 		}
 	}
-	if *prune_missing {
+	if prune_missing {
 		for _, c := range cloud_rrs {
 			found := false
 			if c.Type == "SOA" || c.Type == "NS" {
