@@ -17,6 +17,7 @@ type CloudDNSSpec struct {
 	zone        *string
 	domain      *string
 	default_ttl *int
+	dry_run     *bool
 }
 
 func main() {
@@ -78,6 +79,7 @@ func main() {
 		project:     cloudProject,
 		zone:        cloudZone,
 		default_ttl: defaultCloudTtl,
+		dry_run:     dryRun,
 	}
 
 	err = populateDnsSpec(dns_spec)

@@ -137,6 +137,11 @@ func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
 		log.Printf(" - %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
 	}
 
+	if *dnsSpec.dry_run {
+		log.Print("Running in dry run mode. Not actually updating Cloud DNS.")
+		return nil
+	}
+
 	call := dnsSpec.svc.Changes.Create(*dnsSpec.project, *dnsSpec.zone, dnsChange)
 	out, err := call.Do()
 	if err != nil {
