@@ -472,6 +472,22 @@ func Test_buildTaskInfoToRrsets(t *testing.T) {
 }
 
 func Test_buildDnsChange(t *testing.T) {
+	simpleARecord := &dns.ResourceRecordSet{
+		Name:    "doot.doot.",
+		Type:    "A",
+		Rrdatas: []string{"1.2.3.4"},
+	}
+	otherARecord := &dns.ResourceRecordSet{
+		Name:    "doot.doot.",
+		Type:    "A",
+		Rrdatas: []string{"5.6.7.8"},
+	}
+	simpleCnameRecord := &dns.ResourceRecordSet{
+		Name:    "otherdoot.doot.",
+		Type:    "CNAME",
+		Rrdatas: []string{"doot.doot."},
+	}
+
 	type args struct {
 		cloud_rrs     []*dns.ResourceRecordSet
 		zone_rrs      []*dns.ResourceRecordSet
@@ -490,6 +506,51 @@ func Test_buildDnsChange(t *testing.T) {
 				prune_missing: false,
 			},
 			want: &dns.Change{},
+		},
+		{
+			name: "SingleRecordIntoEmptyCloud",
+			args: args{
+				cloud_rrs:     []*dns.ResourceRecordSet{},
+				zone_rrs:      []*dns.ResourceRecordSet{simpleARecord},
+				prune_missing: false,
+			},
+			want: &dns.Change{
+				Additions: []*dns.ResourceRecordSet{simpleARecord},
+			},
+		},
+		{
+			name: "AdditionalRecordIntoNonEmptyCloud",
+			args: args{
+				cloud_rrs:     []*dns.ResourceRecordSet{simpleCnameRecord},
+				zone_rrs:      []*dns.ResourceRecordSet{simpleCnameRecord, simpleARecord},
+				prune_missing: false,
+			},
+			want: &dns.Change{
+				Additions: []*dns.ResourceRecordSet{simpleARecord},
+			},
+		},
+		{
+			name: "PruneMissing",
+			args: args{
+				cloud_rrs:     []*dns.ResourceRecordSet{simpleCnameRecord, simpleARecord},
+				zone_rrs:      []*dns.ResourceRecordSet{simpleCnameRecord},
+				prune_missing: true,
+			},
+			want: &dns.Change{
+				Deletions: []*dns.ResourceRecordSet{simpleARecord},
+			},
+		},
+		{
+			name: "ReplaceExistingRecord",
+			args: args{
+				cloud_rrs:     []*dns.ResourceRecordSet{simpleARecord},
+				zone_rrs:      []*dns.ResourceRecordSet{otherARecord},
+				prune_missing: true,
+			},
+			want: &dns.Change{
+				Deletions: []*dns.ResourceRecordSet{simpleARecord},
+				Additions: []*dns.ResourceRecordSet{otherARecord},
+			},
 		},
 	}
 	for _, tt := range tests {
