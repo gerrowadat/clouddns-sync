@@ -421,7 +421,6 @@ func Test_buildTaskInfoToRrsets(t *testing.T) {
 		want    []*dns.ResourceRecordSet
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "EmptyTaskInfo",
 			args: args{
@@ -467,6 +466,36 @@ func Test_buildTaskInfoToRrsets(t *testing.T) {
 					t.Logf("Got : %s", describeRrset(rr))
 				}
 				t.Errorf("buildTaskInfoToRrsets() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_buildDnsChange(t *testing.T) {
+	type args struct {
+		cloud_rrs     []*dns.ResourceRecordSet
+		zone_rrs      []*dns.ResourceRecordSet
+		prune_missing bool
+	}
+	tests := []struct {
+		name string
+		args args
+		want *dns.Change
+	}{
+		{
+			name: "BothEmpty",
+			args: args{
+				cloud_rrs:     []*dns.ResourceRecordSet{},
+				zone_rrs:      []*dns.ResourceRecordSet{},
+				prune_missing: false,
+			},
+			want: &dns.Change{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := buildDnsChange(tt.args.cloud_rrs, tt.args.zone_rrs, tt.args.prune_missing); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildDnsChange() = %v, want %v", got, tt.want)
 			}
 		})
 	}
