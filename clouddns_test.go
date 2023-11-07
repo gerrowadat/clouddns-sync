@@ -171,6 +171,14 @@ func TestZoneFileFragment(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "SimpleSOA",
+			args: args{rr: &dns.ResourceRecordSet{
+				Type:    "SOA",
+				Rrdatas: []string{"doot. root.doot. 0 0 0"},
+			}},
+			want: " IN SOA doot. root.doot. 0 0 0",
+		},
+		{
 			name: "SimpleA",
 			args: args{rr: &dns.ResourceRecordSet{
 				Type:    "A",
@@ -211,7 +219,7 @@ func TestZoneFileFragment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ZoneFileFragment(tt.args.rr); got != tt.want {
-				t.Errorf("ZoneFileFragment() = %v, want %v", got, tt.want)
+				t.Errorf("ZoneFileFragment() = '%v', want '%v'", got, tt.want)
 			}
 		})
 	}
