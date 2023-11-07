@@ -114,6 +114,7 @@ func main() {
 
 		if *nomadSyncInterval >= 0 {
 			for {
+				log.Printf("Waiting %d seconds.", *nomadSyncInterval)
 				time.Sleep(time.Duration(*nomadSyncInterval) * time.Second)
 				syncNomad(dns_spec, nomadSpec, dryRun, pruneMissing)
 			}
