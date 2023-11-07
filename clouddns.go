@@ -123,10 +123,20 @@ func addDomainForZone(name string, domain string) string {
 }
 
 func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
-	if len(dnsChange.Additions) == 0 && len(dnsChange.Deletions) == 0 {
+	if dnsChange == nil || (len(dnsChange.Additions) == 0 && len(dnsChange.Deletions) == 0) {
 		log.Printf("No DNS changes for Cloud")
 		return nil
 	}
+
+	log.Printf("Adding %d entries to Cloud DNS", len(dnsChange.Additions))
+	for _, a := range dnsChange.Additions {
+		log.Printf(" + %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
+	}
+	log.Printf("Removing %d entries from Cloud DNS", len(dnsChange.Deletions))
+	for _, a := range dnsChange.Deletions {
+		log.Printf(" - %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
+	}
+
 	call := dnsSpec.svc.Changes.Create(*dnsSpec.project, *dnsSpec.zone, dnsChange)
 	out, err := call.Do()
 	if err != nil {
@@ -139,8 +149,6 @@ func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
 }
 
 func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing bool) (*dns.Change, error) {
-	ret := &dns.Change{}
-
 	// Build a new TaskInfo with fully qualified dns names.
 	fq_taskinfo := []TaskInfo{}
 	for _, t := range tasks {
@@ -152,48 +160,18 @@ func buildNomadDnsChange(dnsSpec *CloudDNSSpec, tasks []TaskInfo, pruneMissing b
 
 	nomad_rrs, err := buildTaskInfoToRrsets(fq_taskinfo, dnsSpec.default_ttl)
 	if err != nil {
-		log.Fatal("Converting Nomad RRs for zone:", dnsSpec.zone)
+		log.Print("Converting Nomad RRs for zone:", dnsSpec.zone)
+		return nil, err
 	}
 
 	cloud_rrs, err := getResourceRecordSetsForZone(dnsSpec)
 	if err != nil {
-		log.Fatal("Getting Cloud DNS RRs for zone:", dnsSpec.zone)
+		log.Print("Getting Cloud DNS RRs for zone:", dnsSpec.zone)
+		return nil, err
 	}
 
-	for _, nr := range nomad_rrs {
-		in_cloud := false
-		for _, cr := range cloud_rrs {
-			if nr.Name == cr.Name && nr.Type == cr.Type {
-				in_cloud = true
-				if !rrsetsEqual(nr, cr) {
-					// pointer in nomad differs from cloud.
-					// Delete cloud record and replace.
-					log.Printf("Updating %s record in cloud: %s", nr.Type, nr.Name)
-					ret.Deletions = append(ret.Deletions, cr)
-					ret.Additions = append(ret.Additions, nr)
-				}
-			}
-		}
-		if !in_cloud {
-			log.Printf("Adding %s record in cloud: %s", nr.Type, nr.Name)
-			ret.Additions = append(ret.Additions, nr)
-		}
-	}
+	ret := buildDnsChange(cloud_rrs, nomad_rrs, &pruneMissing)
 
-	if pruneMissing {
-		for _, cr := range cloud_rrs {
-			found := false
-			for _, nr := range nomad_rrs {
-				if nr.Name == cr.Name && nr.Type == cr.Type {
-					found = true
-				}
-			}
-			if !found {
-				// Record missing from nomad, delete from cloud.
-				ret.Deletions = append(ret.Deletions, cr)
-			}
-		}
-	}
 	return ret, nil
 }
 
@@ -334,12 +312,19 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 
 	log.Printf("Processing %d zonefile entries rendered %d rrsets", len(zf.Entries()), len(zone_rrs))
 
-	change := dns.Change{}
-
 	cloud_rrs, err := getResourceRecordSetsForZone(dnsSpec)
 	if err != nil {
 		log.Fatal("Getting RRs for zone:", dnsSpec.zone)
 	}
+
+	change := buildDnsChange(cloud_rrs, zone_rrs, pruneMissing)
+
+	return processCloudDnsChange(dnsSpec, change)
+}
+
+func buildDnsChange(cloud_rrs, zone_rrs []*dns.ResourceRecordSet, prune_missing *bool) *dns.Change {
+
+	ret := dns.Change{}
 
 	for _, z := range zone_rrs {
 		found := false
@@ -349,18 +334,18 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 				if !rrsetsEqual(z, c) {
 					// Modify means a delete of the exact old record plus
 					// addition of the new one.
-					change.Additions = append(change.Additions, z)
-					change.Deletions = append(change.Deletions, c)
+					ret.Additions = append(ret.Additions, z)
+					ret.Deletions = append(ret.Deletions, c)
 					break
 				}
 			}
 		}
 		if !found {
 			// Not found in Cloud DNS, set for addition
-			change.Additions = append(change.Additions, z)
+			ret.Additions = append(ret.Additions, z)
 		}
 	}
-	if *pruneMissing {
+	if *prune_missing {
 		for _, c := range cloud_rrs {
 			found := false
 			if c.Type == "SOA" || c.Type == "NS" {
@@ -373,23 +358,11 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 			}
 			if !found {
 				// Missing from zone file, prune from cloud.
-				change.Deletions = append(change.Deletions, c)
+				ret.Deletions = append(ret.Deletions, c)
 			}
 		}
 
 	}
-	log.Printf("Adding %d entries to Cloud DNS", len(change.Additions))
-	for _, a := range change.Additions {
-		log.Printf(" + %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
-	}
-	log.Printf("Removing %d entries from Cloud DNS", len(change.Deletions))
-	for _, a := range change.Deletions {
-		log.Printf(" - %s (%s) %s", a.Name, a.Type, strings.Join(a.Rrdatas, " "))
-	}
-	if len(change.Additions) == 0 && len(change.Deletions) == 0 {
-		log.Printf("No Changes to do")
-		return nil
-	}
+	return &ret
 
-	return processCloudDnsChange(dnsSpec, &change)
 }
