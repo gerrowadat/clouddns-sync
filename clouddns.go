@@ -288,6 +288,8 @@ func mergeZoneEntryIntoRrsets(dnsSpec *CloudDNSSpec, rrs []*dns.ResourceRecordSe
 	// Fuck's sake.
 	if e.TTL() != nil {
 		this_rrset.Ttl = int64(*e.TTL())
+	} else {
+		this_rrset.Ttl = int64(*dnsSpec.default_ttl)
 	}
 	this_rrset.Type = string(e.Type())
 

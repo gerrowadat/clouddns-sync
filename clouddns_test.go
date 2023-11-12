@@ -343,6 +343,11 @@ func sloppyParseEntry(entry string) zonefile.Entry {
 
 func Test_mergeZoneEntryIntoRrsets(t *testing.T) {
 	test_domain := "mydomain.test."
+	default_ttl := 300
+	testDnsSpec := &CloudDNSSpec{
+		default_ttl: &default_ttl,
+		domain:      &test_domain,
+	}
 
 	type args struct {
 		dnsSpec *CloudDNSSpec
@@ -359,7 +364,7 @@ func Test_mergeZoneEntryIntoRrsets(t *testing.T) {
 			// ns and SOA records get ignored.
 			name: "mergeNS",
 			args: args{
-				dnsSpec: nil,
+				dnsSpec: testDnsSpec,
 				rrs:     []*dns.ResourceRecordSet{},
 				e:       sloppyParseEntry(" IN NS ns1.example.com."),
 			},
@@ -369,7 +374,7 @@ func Test_mergeZoneEntryIntoRrsets(t *testing.T) {
 			// ns and SOA records get ignored.
 			name: "mergeSOA",
 			args: args{
-				dnsSpec: nil,
+				dnsSpec: testDnsSpec,
 				rrs:     []*dns.ResourceRecordSet{},
 				e:       sloppyParseEntry(" IN SOA doot. root.doot. 0 0 0 0 0 0"),
 			},
@@ -379,16 +384,15 @@ func Test_mergeZoneEntryIntoRrsets(t *testing.T) {
 			// set a bare name and see if we get it qualified
 			name: "qualifyBareName",
 			args: args{
-				dnsSpec: &CloudDNSSpec{
-					domain: &test_domain,
-				},
-				rrs: []*dns.ResourceRecordSet{},
-				e:   sloppyParseEntry("barename IN A 1.2.3.4"),
+				dnsSpec: testDnsSpec,
+				rrs:     []*dns.ResourceRecordSet{},
+				e:       sloppyParseEntry("barename IN A 1.2.3.4"),
 			},
 			want: []*dns.ResourceRecordSet{
 				{
 					Name:    string("barename." + test_domain),
 					Type:    "A",
+					Ttl:     int64(default_ttl),
 					Rrdatas: []string{"1.2.3.4"},
 				},
 			},
