@@ -43,20 +43,32 @@ Congrats! you now have a useless DNS zone with no records! You can add them with
 
 # Tool Usage
 
+if you're using a JSON keyfile as above, you don't need to specify ```--cloud-project``` if the project is named there.
+
+If you don't specify ```--json-keyfile``` then we'l try to use default credentials (i.e. the ones that the ```gcloud``` CLI uses). The examples below do this for clarity.
+
+## ```getzonefile``` and ```putzonefile``` - Zonefile Nonsense
+
 If you want to spit out a mostly valid zonefile from your gcloud-dns zone, this will do it:
 
-`clouddns-sync --json-keyfile=mykeyfile.json --cloud-project=mydnsproject --cloud-dns-zone=myzone getzonefile`
+`clouddns-sync --cloud-project=mydnsproject --cloud-dns-zone=myzone getzonefile`
 
 If you have a zonefile, slurp it into gcloud DNS by doing this: 
 
-`clouddns-sync --json-keyfile=mykeyfile.json --cloud-project=mydnsproject --cloud-dns-zone=myzone --zonefile=myzonefile putzonefile`
+`clouddns-sync --cloud-project=mydnsproject --cloud-dns-zone=myzone --zonefile=myzonefile putzonefile`
 
 You can add `--dry-run` to putzonefile to see what we'd do. You can also add `--prune-missing` to remove RRs that aren't in your zonefile but are in gcloud.
 
 My own use case is to do this once and then do future updates from a data source more reliable than your grandad's text file.
 
-# Update from Nomad cluster (EXPERIMENTAL)
+## ```nomad_sync``` Update from Nomad cluster 
 
 ```clouddns-sync --cloud-project=mydnsproject --cloud-dns-zone=myzone --nomad-server-uri=http://anynomadserver:4646/ nomad_sync```
 
 Right now we build a list of A records by inspecting all allocs and pointing *jobname*.domain to all nodes that hold an alloc in that job. That might not be what you want, but the important thing is that it's what I want. Patches welcome!
+
+## ```dynrecord``` dyndns-style single record updating
+
+This is if you have a DNS name you want to do 'dyndns' style updating for (i.e. we find out what our public IP is and set the specificed A record to that.)
+
+```clouddns-sync --cloud-project=mydnsproject --cloud-dns-zone=myzone --cloud-dns-dyn-record-name=myhomeip.domain.tld. dynrecord```
