@@ -373,3 +373,32 @@ func buildDnsChange(cloud_rrs, zone_rrs []*dns.ResourceRecordSet, prune_missing 
 	return &ret
 
 }
+
+func updateOneARecord(dns_spec *CloudDNSSpec, record_name string, old_ip, new_ip string) error {
+
+	log.Printf("Updating Cloud DNS: %s : %s -> %s", record_name, old_ip, new_ip)
+
+	change := &dns.Change{
+		Additions: []*dns.ResourceRecordSet{
+			{
+				Name:    record_name,
+				Type:    "A",
+				Rrdatas: []string{new_ip},
+				Ttl:     int64(*dns_spec.default_ttl),
+			},
+		},
+	}
+
+	// Gcloud DNS shits the bed if you try to delete a record that's not there.
+	if old_ip != "" {
+		new_rr := dns.ResourceRecordSet{
+			Name:    record_name,
+			Type:    "A",
+			Rrdatas: []string{old_ip},
+			Ttl:     int64(*dns_spec.default_ttl),
+		}
+		change.Deletions = append(change.Deletions, &new_rr)
+	}
+
+	return processCloudDnsChange(dns_spec, change)
+}
