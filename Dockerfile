@@ -1,12 +1,29 @@
 FROM golang:1.21
+RUN go install github.com/gerrowadat/clouddns-sync@0.0.6
 
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY *.go ./
+COPY entrypoint.sh /
+RUN chmod +x /entrypoint.sh
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /clouddns-sync
+USER root
 
-# Run
-ENTRYPOINT ["/clouddns-sync"]
+# Interval between runs.
+ENV GCLOUD_DNS_INTERVAL_SECS=86400
+
+# gcloud specifiers
+ENV GCLOUD_VERB "dynrecord"
+ENV GCLOUD_DNS_ZONE ""
+ENV GCLOUD_DYN_RECORD_NAME ""
+
+# nomad specifiers
+ENV NOMAD_SERVER_URI ""
+ENV NOMAD_TOKEN_FILE ""
+
+# json credentials file location
+ENV JSON_KEYFILE ""
+
+# zonefile location
+ENV ZONEFILENAME ""
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/entrypoint.sh"]
+
