@@ -47,6 +47,7 @@ func syncNomad(dnsSpec *CloudDNSSpec, nomadSpec *NomadSpec, pruneMissing *bool) 
 	if err != nil {
 		log.Fatal("Updating Cloud DNS from nomad:", err)
 	}
+	dnsTotalRecordCount.Set(float64(len(jobLocs)))
 }
 
 func getNomadNodesList(nomadSpec *NomadSpec) NodeInfo {

@@ -23,6 +23,10 @@ var (
 		Name: "dns_changes_processed_total",
 		Help: "The total number of DNS changes processed",
 	})
+	dnsTotalRecordCount = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "dns_total_record_count",
+		Help: "The total number of DNS records",
+	})
 )
 
 type CloudDNSSpec struct {
