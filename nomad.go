@@ -18,7 +18,7 @@ type NomadSpec struct {
 	token string
 }
 
-func syncNomad(dnsSpec *CloudDNSSpec, nomadSpec *NomadSpec, dryRun *bool, pruneMissing *bool) {
+func syncNomad(dnsSpec *CloudDNSSpec, nomadSpec *NomadSpec, pruneMissing *bool) {
 	//c := make(<-chan *dns.Change)
 	jobLocs := getNomadTaskLocations(nomadSpec)
 

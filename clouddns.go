@@ -149,6 +149,7 @@ func processCloudDnsChange(dnsSpec *CloudDNSSpec, dnsChange *dns.Change) error {
 	} else {
 		log.Printf("Added [%d] and deleted [%d] records.",
 			len(out.Additions), len(out.Deletions))
+		dnsChangesProcessed.Inc()
 	}
 	return err
 }
@@ -325,6 +326,10 @@ func uploadZonefile(dnsSpec *CloudDNSSpec, zoneFilename *string, dryRun *bool, p
 	}
 
 	change := buildDnsChange(cloud_rrs, zone_rrs, *pruneMissing)
+
+	if *dryRun {
+		log.Print("Running in dry run mode. Not actually updating Cloud DNS.")
+	}
 
 	return processCloudDnsChange(dnsSpec, change)
 }

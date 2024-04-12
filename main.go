@@ -10,9 +10,19 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	google_oauth "golang.org/x/oauth2/google"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/option"
+)
+
+var (
+	dnsChangesProcessed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dns_changes_processed_total",
+		Help: "The total number of DNS changes processed",
+	})
 )
 
 type CloudDNSSpec struct {
@@ -167,6 +177,7 @@ func main() {
 			log.Fatalf("Error Updating GCloud: %s", err)
 		}
 	case "nomad_sync":
+		http.Handle("/metrics", promhttp.Handler())
 		nomadSpec := &NomadSpec{
 			uri: *nomadServerURI,
 		}
@@ -180,13 +191,13 @@ func main() {
 			nomadSpec.token = ""
 		}
 
-		syncNomad(dns_spec, nomadSpec, dryRun, pruneMissing)
+		syncNomad(dns_spec, nomadSpec, pruneMissing)
 
 		if *nomadSyncInterval >= 0 {
 			for {
 				log.Printf("Waiting %d seconds.", *nomadSyncInterval)
 				time.Sleep(time.Duration(*nomadSyncInterval) * time.Second)
-				syncNomad(dns_spec, nomadSpec, dryRun, pruneMissing)
+				syncNomad(dns_spec, nomadSpec, pruneMissing)
 			}
 		}
 	default:
