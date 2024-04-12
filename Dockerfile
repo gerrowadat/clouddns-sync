@@ -1,5 +1,5 @@
 FROM golang:1.21
-RUN go install github.com/gerrowadat/clouddns-sync@0.0.6
+RUN go install github.com/gerrowadat/clouddns-sync@0.0.7
 
 COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
