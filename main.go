@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -68,6 +68,7 @@ func main() {
 	var nomadServerURI = flag.String("nomad-server-uri", "http://localhost:4646", "URI for a nomad server to talk to.")
 	var nomadTokenFile = flag.String("nomad-token-file", "", "file to read ou rnomad token from")
 	var nomadSyncInterval = flag.Int("nomad-sync-interval-secs", 300, "seconds between nomad updates. set to -1 to sync once only.")
+	var httpPort = flag.Int("http-port", 8080, "Port to listen on for /metrics")
 
 	// for dynrecord
 	var cloudDnsDynRecordName = flag.String("cloud-dns-dyn-record-name", "", "Cloud DNS record to update with our IP")
@@ -177,7 +178,6 @@ func main() {
 			log.Fatalf("Error Updating GCloud: %s", err)
 		}
 	case "nomad_sync":
-		http.Handle("/metrics", promhttp.Handler())
 		nomadSpec := &NomadSpec{
 			uri: *nomadServerURI,
 		}
@@ -191,15 +191,12 @@ func main() {
 			nomadSpec.token = ""
 		}
 
-		syncNomad(dns_spec, nomadSpec, pruneMissing)
+		http.Handle("/metrics", promhttp.Handler())
 
-		if *nomadSyncInterval >= 0 {
-			for {
-				log.Printf("Waiting %d seconds.", *nomadSyncInterval)
-				time.Sleep(time.Duration(*nomadSyncInterval) * time.Second)
-				syncNomad(dns_spec, nomadSpec, pruneMissing)
-			}
-		}
+		go periodicallySyncNomad(dns_spec, nomadSpec, *nomadSyncInterval, pruneMissing)
+
+		log.Fatal(http.ListenAndServe(":"+fmt.Sprintf("%v", *httpPort), nil))
+
 	default:
 		log.Fatal("Unknown verb: ", verb)
 	}

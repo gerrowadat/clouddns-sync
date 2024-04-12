@@ -12,7 +12,7 @@ do
         --cloud-dns-zone=$GCLOUD_DNS_ZONE \
         --json-keyfile=$JSON_KEYFILE \
         --nomad-server-uri=$NOMAD_SERVER_URI \
-        --nomad-token_file=$NOMAD_TOKEN_FILE \
+        --nomad-token-file=$NOMAD_TOKEN_FILE \
         $GCLOUD_VERB
               ;;
     getzonefile | putzonefile)

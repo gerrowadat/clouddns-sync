@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	nomad "github.com/hashicorp/nomad/api"
 )
@@ -16,6 +17,18 @@ type NodeInfo map[string]string
 type NomadSpec struct {
 	uri   string
 	token string
+}
+
+func periodicallySyncNomad(dns_spec *CloudDNSSpec, nomadSpec *NomadSpec, interval int, pruneMissing *bool) {
+	syncNomad(dns_spec, nomadSpec, pruneMissing)
+
+	if interval >= 0 {
+		for {
+			log.Printf("Waiting %d seconds.", interval)
+			time.Sleep(time.Duration(interval) * time.Second)
+			syncNomad(dns_spec, nomadSpec, pruneMissing)
+		}
+	}
 }
 
 func syncNomad(dnsSpec *CloudDNSSpec, nomadSpec *NomadSpec, pruneMissing *bool) {
