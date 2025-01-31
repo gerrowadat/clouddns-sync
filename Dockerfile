@@ -24,6 +24,9 @@ ENV JSON_KEYFILE ""
 # zonefile location
 ENV ZONEFILENAME ""
 
+# webserver
+ENV HTTP_PORT "8080"
+
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/entrypoint.sh"]
 
