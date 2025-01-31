@@ -67,6 +67,9 @@ func getNomadNodesList(nomadSpec *NomadSpec) NodeInfo {
 
 	ret := NodeInfo{}
 	for _, n := range nodes {
+		if n.Address == "" {
+			log.Fatalf("Found nomad node %s with unknown IP", n.Name)
+		}
 		ret[n.Name] = n.Address
 	}
 
@@ -98,6 +101,7 @@ func getNomadTaskLocations(nomadSpec *NomadSpec) []TaskInfo {
 	nodes := getNomadNodesList(nomadSpec)
 
 	for _, a := range allocs {
+
 		if a.ClientStatus != "running" {
 			continue
 		}
