@@ -13,6 +13,7 @@ do
         --json-keyfile=$JSON_KEYFILE \
         --nomad-server-uri=$NOMAD_SERVER_URI \
         --nomad-token-file=$NOMAD_TOKEN_FILE \
+        --http-port=$HTTP_PORT \
         $GCLOUD_VERB
               ;;
     getzonefile | putzonefile)
